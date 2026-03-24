@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>資產配置管理分析</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #F3F4F6; color: #1F2937; font-family: "Segoe UI", "Microsoft JhengHei", sans-serif; line-height: 1.35; }
+        .group-card { background: white; border: 1px solid #D1D5DB; border-radius: 6px; margin-bottom: 24px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.03); display: flex; flex-direction: column; }
+        .group-header { padding: 12px 18px; font-weight: 700; font-size: 1.1rem; color: #374151; border-bottom: 1px solid #D1D5DB; display: flex; justify-content: space-between; align-items: center; }
+        
+        .border-strategy { border-top: 4px solid #6366F1; }
+        .border-target { border-top: 4px solid #9CA3AF; }
+        .border-cash { border-top: 4px solid #60A5FA; }
+        .border-emer { border-top: 4px solid #4ADE80; }
+        .border-stock { border-top: 4px solid #F59E0B; }
+        
+        .bg-strategy { background-color: #F8FAFC; }
+        .bg-cash { background-color: #EFF6FF; }
+        .bg-emer { background-color: #F0FDF4; }
+        .bg-stock { background-color: #FFFBEB; }
+
+        /* 統一輸入框樣式 */
+        .input-field { border: 1px solid #D1D5DB; border-radius: 4px; padding: 6px 10px; width: 100%; font-size: 1rem; color: #111827; font-weight: 600; font-family: 'Consolas', monospace; }
+        .input-field:focus { border-color: #3B82F6; outline: none; background-color: #FFF; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        
+        /* 專門針對表格內的輸入框進行微調，減少擁擠感 */
+        .table-input { padding: 5px 6px; font-size: 0.95rem; }
+
+        label { color: #0F172A !important; font-weight: 800 !important; font-size: 0.9rem; margin-bottom: 4px; display: block; }
+        .btn-tab { padding: 12px 36px; font-weight: 700; color: #6B7280; border-bottom: 4px solid transparent; transition: all 0.2s; cursor: pointer; }
+        .btn-tab.active { color: #2563EB; border-bottom-color: #2563EB; }
+        
+        .unified-total-row { padding: 12px 18px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #D1D5DB; min-height: 58px; margin-top: auto; }
+        .total-label { font-size: 0.875rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; }
+        .total-amount { font-size: 1.25rem; font-weight: 900; font-family: 'Segoe UI', sans-serif; }
+        
+        /* 表格對齊與間距 */
+        .stock-table th { background: rgba(245, 158, 11, 0.05); padding: 12px 10px; border-bottom: 2px solid rgba(217, 119, 6, 0.1); font-size: 0.85rem; font-weight: 800; color: #92400E; text-align: center; }
+        .stock-table td { padding: 10px 8px; border-bottom: 1px solid rgba(217, 119, 6, 0.05); vertical-align: middle; }
+
+        .history-table th { background: #F9FAFB; padding: 10px; border-bottom: 2px solid #E5E7EB; font-size: 0.8rem; text-align: center; }
+        .history-table td { padding: 10px; border-bottom: 1px solid #F3F4F6; font-size: 0.85rem; font-family: 'Consolas', monospace; text-align: center; }
+        [v-cloak] { display: none; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div id="app" v-cloak>
+        <header class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center mb-8 pb-4 border-b border-slate-300">
+            <div class="text-center md:text-left">
+                <h1 class="text-3xl font-black text-slate-800 tracking-tight">資產配置管理分析 <span class="text-indigo-600 text-lg font-medium"></span></h1>
+                <div class="flex items-center gap-4 mt-2 font-bold text-sm text-slate-500">
+                    <p>{{ currentTime }}</p>
+                    <div class="bg-white border border-slate-200 px-3 py-1 rounded-full text-blue-600 shadow-sm">USD/TWD: <span>{{ usdRate }}</span></div>
+                </div>
+            </div>
+            <div class="flex mt-6 md:mt-0 gap-2">
+                <button @click="currentTab = 'input'" :class="['btn-tab', currentTab === 'input' ? 'active' : '']">資產分析</button>
+                <button @click="currentTab = 'history'" :class="['btn-tab', currentTab === 'history' ? 'active' : '']">歷史紀錄與同步</button>
+            </div>
+        </header>
+
+        <div v-show="currentTab === 'input'" class="max-w-7xl mx-auto grid lg:grid-cols-12 gap-8">
+            <div class="lg:col-span-8 space-y-4">
+                
+                <section class="group-card border-strategy bg-strategy h-auto">
+                    <div class="group-header text-indigo-700"><span>⓪ 戰略核心指標 (負債與資產)</span></div>
+                    <div class="p-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="uppercase tracking-wider">信貸總額 (Total Loan)</label>
+                                <input type="number" v-model.number="finance.loanBalance" class="input-field border-rose-200 font-mono text-rose-700 bg-white">
+                            </div>
+                            <div class="bg-white p-5 rounded-lg border border-slate-200 flex flex-col justify-center gap-4 shadow-sm">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-base font-bold text-slate-500 uppercase tracking-widest">總資產 (現金+股票)</span>
+                                    <span class="text-2xl font-black text-slate-800">{{ formatCurrency(totalAssets) }}</span>
+                                </div>
+                                <hr>
+                                <div class="flex justify-between items-center text-indigo-600">
+                                    <span class="text-base font-bold">目前現金合計</span>
+                                    <span class="text-2xl font-black">{{ formatCurrency(sums.cashTotal) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="group-card border-target h-auto bg-gray-50/30">
+                    <div class="group-header text-slate-700"><span>① 預期比例目標設定 (%)</span></div>
+                    <div class="p-6">
+                        <h3 class="text-base font-bold text-slate-700 mb-4 border-l-4 border-slate-400 pl-2">資產大類配置目標</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                            <div v-for="key in ['survivalRatio', 'investRatio', 'stockRatio']" :key="key">
+                                <label>{{ labels[key] }}</label>
+                                <input type="number" v-model.number="targetRatios[key]" class="input-field">
+                            </div>
+                        </div>
+                        <div class="pt-4 border-t border-dashed border-slate-300">
+                            <h3 class="text-base font-bold text-slate-700 mb-4 border-l-4 border-slate-400 pl-2">股票內部平衡目標</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
+                                <div v-for="key in ['levRatio', 'rawRatio']" :key="key">
+                                    <label>{{ labels[key] }}</label>
+                                    <input type="number" v-model.number="targetRatios[key]" class="input-field">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="grid md:grid-cols-2 gap-8 items-stretch">
+                    <section class="group-card border-cash bg-cash h-full">
+                        <div class="group-header text-blue-700"><span>② 生存預備金帳戶</span></div>
+                        <div class="p-6 space-y-4 flex-grow">
+                            <div v-for="key in ['ctbc', 'taishin', 'sinopac', 'nextBank']" :key="key">
+                                <label>{{ labels[key] }}</label>
+                                <input type="number" v-model.number="assets[key]" class="input-field text-right font-mono bg-white">
+                            </div>
+                        </div>
+                        <div class="unified-total-row bg-blue-100/50">
+                            <span class="total-label text-blue-800">生存預備金合計</span>
+                            <span class="total-amount text-blue-900">{{ formatCurrency(sums.cashSurv) }}</span>
+                        </div>
+                    </section>
+                    <section class="group-card border-emer bg-emer h-full">
+                        <div class="group-header text-emerald-700"><span>③ 投資預備金帳戶</span></div>
+                        <div class="p-6 space-y-4 flex-grow">
+                            <div v-for="key in ['fubon', 'lineBank']" :key="key">
+                                <label>{{ labels[key] }}</label>
+                                <input type="number" v-model.number="assets[key]" class="input-field text-right font-mono bg-white">
+                            </div>
+                        </div>
+                        <div class="unified-total-row bg-emerald-100/50">
+                            <span class="total-label text-emerald-800">投資預備金合計</span>
+                            <span class="total-amount text-emerald-900">{{ formatCurrency(sums.cashInv) }}</span>
+                        </div>
+                    </section>
+                </div>
+
+                <section class="group-card border-stock bg-stock h-auto">
+                    <div class="group-header">
+                        <span>④ 股票投資明細</span>
+                        <button @click="addStock" class="bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-1.5 rounded-md text-xs font-bold transition shadow-sm">＋ 新增標的</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="stock-table w-full">
+                            <thead>
+                                <tr>
+                                    <th width="20%">持股類別</th>
+                                    <th width="20%">代號/名稱</th>
+                                    <th width="14%" class="text-right">股數</th>
+                                    <th width="16%" class="text-right">現價</th>
+                                    <th width="22%" class="text-right">市值(TWD)</th>
+                                    <th width="8%"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-amber-200/50">
+                                <tr v-for="(stock, index) in stockList" :key="index" class="hover:bg-white/60 transition">
+                                    <td>
+                                        <select v-model="stock.type" class="input-field table-input bg-white font-bold">
+                                            <option value="usLev">美股槓桿</option>
+                                            <option value="usRaw">美股原型</option>
+                                            <option value="twLev">台股槓桿</option>
+                                            <option value="twRaw">台股原型</option>
+                                        </select>
+                                    </td>
+                                    <td><input type="text" v-model="stock.name" class="input-field table-input font-bold uppercase text-blue-800 bg-white"></td>
+                                    <td><input type="number" v-model.number="stock.shares" class="input-field table-input text-right font-mono bg-white"></td>
+                                    <td><input type="number" v-model.number="stock.price" class="input-field table-input text-right font-mono bg-white"></td>
+                                    <td class="text-right font-black text-slate-900 text-lg">{{ formatCurrency(calcSingleStock(stock, usdRate)) }}</td>
+                                    <td class="text-center"><button @click="removeStock(index)" class="text-slate-400 hover:text-red-500 transition font-bold text-2xl">✕</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="unified-total-row bg-amber-100/50 p-6">
+                            <span class="total-label text-amber-800">股票投資合計</span>
+                            <span class="total-amount text-amber-900">{{ formatCurrency(sums.stockTotal) }}</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div class="lg:col-span-4 space-y-6">
+                <section class="group-card border-analysis bg-slate-50 h-auto">
+                    <div class="group-header"><span>風險監控面盤</span></div>
+                    <div class="p-6"> 
+                        <div class="p-5 bg-slate-900 rounded-sm text-white shadow-lg border-l-4" :style="{ borderColor: riskUI.hex }">
+                            <div class="flex justify-between items-center mb-4">
+                                <span class="text-sm font-bold uppercase tracking-wider text-slate-300 whitespace-nowrap">負債佔總資產比例 (L/A)</span>
+                                <span :style="{ color: riskUI.hex }" class="font-black font-mono text-3xl ml-2">{{ leverageRatio }}%</span>
+                            </div>
+                            <div class="w-full bg-slate-700 h-5 border border-slate-600 overflow-hidden rounded-full">
+                                <div class="h-full transition-all duration-1000" :class="riskUI.bgClass" :style="{width: Math.min(leverageRatio, 100) + '%'}"></div>
+                            </div>
+                            <div class="flex justify-between mt-3 text-[11px] font-bold">
+                                <span :class="leverageRatio < 55 ? 'text-emerald-400' : 'text-slate-500'">● 低風險 (<55)</span>
+                                <span :class="leverageRatio >= 55 && leverageRatio < 65 ? 'text-yellow-400' : 'text-slate-500'">● 安全區</span>
+                            </div>
+                            <div class="flex justify-between mt-1 text-[11px] font-bold">
+                                <span :class="leverageRatio >= 65 && leverageRatio < 75 ? 'text-orange-400' : 'text-slate-500'">● 高風險</span>
+                                <span :class="leverageRatio >= 75 ? 'text-red-500 font-black' : 'text-slate-500'">● 危險區</span>
+                            </div>
+                            <p class="text-[9px] text-slate-400 mt-4 italic text-center uppercase tracking-tighter">公式：信貸總額 / (現金合計 + 股票合計)</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="group-card h-auto">
+                    <div class="group-header"><span>再平衡操作指引</span></div>
+                    <div class="p-6 space-y-4 bg-slate-50">
+                        <div v-for="adv in rebalanceAdvice" :key="adv.name" class="p-4 bg-white border border-slate-300 rounded-md">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-lg font-black text-slate-800">{{ adv.name }}</span>
+                                <span class="text-xl font-black" :class="adv.diff >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ adv.diff >= 0 ? '＋' : '' }}{{ formatCurrency(adv.diff) }}</span>
+                            </div>
+                            <p class="text-sm text-slate-600 mt-1 uppercase text-right font-black">
+                                當前: <span class="text-black">{{ adv.current }}%</span> / 目標: <span class="text-black">{{ adv.target }}%</span>
+                            </p>
+                        </div>
+                        <button @click="handleSave" :disabled="isSaving" class="w-full bg-slate-800 text-white font-black py-4 rounded hover:bg-black transition uppercase text-xs tracking-widest mt-2 shadow-md">
+                            {{ isSaving ? '同步數據中...' : '確認儲存目前快照' }}
+                        </button>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <div v-show="currentTab === 'history'" class="max-w-7xl mx-auto space-y-8">
+            <section class="group-card border-indigo-500 bg-indigo-50/30">
+                <div class="group-header bg-indigo-100 text-indigo-800"><span>📦 數據備份與跨裝置同步</span></div>
+                <div class="p-6 grid md:grid-cols-2 gap-8">
+                    <div class="space-y-3">
+                        <h4 class="font-black text-indigo-900 text-lg">1. 從此裝置「匯出」資料</h4>
+                        <p class="text-xs text-slate-600">將目前所有的輸入、歷史紀錄打包下載。請將此檔案傳送到手機。</p>
+                        <button @click="exportFullData" class="bg-indigo-600 text-white px-6 py-3 rounded-md font-bold hover:bg-indigo-700 shadow-md">下載完整備份檔案 (.json)</button>
+                    </div>
+                    <div class="space-y-3 border-l md:pl-8 border-indigo-200">
+                        <h4 class="font-black text-indigo-900 text-lg">2. 匯入至此裝置「同步」</h4>
+                        <p class="text-xs text-slate-600">選取備份檔，將舊資料直接還原到此網址中。</p>
+                        <input type="file" @change="importFullData" accept=".json" class="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700">
+                    </div>
+                </div>
+            </section>
+
+            <section class="group-card">
+                <div class="group-header bg-slate-100">
+                    <span>資產歷史紀錄</span>
+                    <button @click="exportToCSV" class="text-xs font-bold bg-blue-600 text-white px-5 py-2 rounded shadow">匯出 CSV</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full history-table">
+                        <thead>
+                            <tr>
+                                <th>紀錄日期時間</th><th>總資產 (A)</th><th>信貸總額 (L)</th><th>目前現金</th><th>美股%</th><th>台股%</th><th>槓桿%</th><th>原型%</th><th>負債比例</th><th>管理</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-300 bg-white">
+                            <tr v-for="(h, idx) in history" :key="idx">
+                                <td class="text-[11px] font-bold">{{ h.time }}</td>
+                                <td class="font-black text-black text-right">{{ formatCurrency(h.total) }}</td>
+                                <td class="text-rose-700 font-bold text-right">{{ formatCurrency(h.loan) }}</td>
+                                <td class="text-blue-800 font-bold text-right">{{ formatCurrency(h.cash) }}</td>
+                                <td>{{ h.usP }}%</td><td>{{ h.twP }}%</td>
+                                <td class="font-bold text-orange-600">{{ h.levP }}%</td>
+                                <td class="font-bold text-slate-600">{{ h.rawP }}%</td>
+                                <td class="font-black text-slate-900">{{ h.levRatio }}%</td>
+                                <td><button @click="deleteHistory(idx)" class="text-red-500 font-black hover:underline">✕</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, reactive, ref, computed, onMounted, watch } = Vue;
+
+        createApp({
+            setup() {
+                const currentTab = ref('input');
+                const currentTime = ref('');
+                const usdRate = ref(32.5);
+                const isSaving = ref(false);
+                const STORAGE_KEY = 'dr_asset_vFinal_GH_v2_';
+
+                const labels = { 
+                    ctbc:'中國信託', taishin:'台新', sinopac:'永豐', nextBank: '將來', fubon:'富邦', lineBank:'Line Bank', 
+                    survivalRatio:'生存預備金佔比%', investRatio:'投資預備金佔比%', stockRatio:'投資總額佔比%',
+                    levRatio:'槓桿標的佔比%', rawRatio:'原型標的佔比%'
+                };
+
+                const assets = reactive(JSON.parse(localStorage.getItem(STORAGE_KEY + 'assets')) || { ctbc:0, taishin:0, sinopac:0, nextBank:0, fubon:0, lineBank:0 });
+                const targetRatios = reactive(JSON.parse(localStorage.getItem(STORAGE_KEY + 'ratios')) || { survivalRatio:20, investRatio:10, stockRatio:70, levRatio:50, rawRatio:50 });
+                const stockList = reactive(JSON.parse(localStorage.getItem(STORAGE_KEY + 'stocks')) || [{ type:'usRaw', name:'VT', shares:0, price:0 }]);
+                const finance = reactive(JSON.parse(localStorage.getItem(STORAGE_KEY + 'fin')) || { loanBalance: 0 });
+                const history = reactive(JSON.parse(localStorage.getItem(STORAGE_KEY + 'history')) || []);
+
+                const getLiveRate = async () => { try { const res = await fetch('https://open.er-api.com/v6/latest/USD'); const data = await res.json(); return data.rates?.TWD ? parseFloat(data.rates.TWD.toFixed(2)) : 32.5; } catch (e) { return 32.5; } };
+                const calcSingleStock = (s, rate) => (s.shares || 0) * (s.price || 0) * (s.type.startsWith('us') ? rate : 1);
+                
+                const sums = computed(() => {
+                    const cSurv = (assets.ctbc||0) + (assets.taishin||0) + (assets.sinopac||0) + (assets.nextBank||0);
+                    const cInv = (assets.fubon||0) + (assets.lineBank||0);
+                    const usRaw = stockList.filter(s => s.type === 'usRaw').reduce((a,c) => a + calcSingleStock(c, usdRate.value), 0);
+                    const usLev = stockList.filter(s => s.type === 'usLev').reduce((a,c) => a + calcSingleStock(c, usdRate.value), 0);
+                    const twRaw = stockList.filter(s => s.type === 'twRaw').reduce((a,c) => a + calcSingleStock(c, usdRate.value), 0);
+                    const twLev = stockList.filter(s => s.type === 'twLev').reduce((a,c) => a + calcSingleStock(c, usdRate.value), 0);
+                    const stockTotal = usRaw + usLev + twRaw + twLev;
+                    return { cashSurv: cSurv, cashInv: cInv, cashTotal: cSurv + cInv, usRaw, usLev, twRaw, twLev, stockTotal };
+                });
+
+                const totalAssets = computed(() => sums.value.cashTotal + sums.value.stockTotal);
+                const leverageRatio = computed(() => totalAssets.value > 0 ? ((finance.loanBalance / totalAssets.value) * 100).toFixed(1) : 0);
+
+                const riskUI = computed(() => {
+                    const r = parseFloat(leverageRatio.value);
+                    if (r < 55) return { hex: '#10B981', bgClass: 'bg-emerald-500' }; 
+                    if (r < 65) return { hex: '#FBBF24', bgClass: 'bg-yellow-500' };  
+                    if (r < 75) return { hex: '#F97316', bgClass: 'bg-orange-500' };  
+                    return { hex: '#EF4444', bgClass: 'bg-red-500' };                
+                });
+
+                const rebalanceAdvice = computed(() => {
+                    const total = totalAssets.value || 1;
+                    const stockPart = sums.value.stockTotal || 1;
+                    return [
+                        { name: '生存預備金佔比', current: (sums.value.cashSurv/total*100).toFixed(1), target: targetRatios.survivalRatio, diff: (total*targetRatios.survivalRatio/100) - sums.value.cashSurv },
+                        { name: '投資預備金佔比', current: (sums.value.cashInv/total*100).toFixed(1), target: targetRatios.investRatio, diff: (total*targetRatios.investRatio/100) - sums.value.cashInv },
+                        { name: '槓桿標的佔比', current: ((sums.value.usLev + sums.value.twLev)/stockPart*100).toFixed(1), target: targetRatios.levRatio, diff: (stockPart*targetRatios.levRatio/100) - (sums.value.usLev + sums.value.twLev) },
+                        { name: '原型標的佔比', current: ((sums.value.usRaw + sums.value.twRaw)/stockPart*100).toFixed(1), target: targetRatios.rawRatio, diff: (stockPart*targetRatios.rawRatio/100) - (sums.value.usRaw + sums.value.twRaw) }
+                    ];
+                });
+
+                const handleSave = async () => {
+                    isSaving.value = true;
+                    try {
+                        usdRate.value = await getLiveRate();
+                        const sT = sums.value.stockTotal || 1;
+                        history.unshift({
+                            time: new Date().toLocaleString('zh-TW', { hour12: false }),
+                            total: totalAssets.value, loan: finance.loanBalance, cash: sums.value.cashTotal,
+                            usP: (((sums.value.usRaw + sums.value.usLev) / sT) * 100).toFixed(1),
+                            twP: (((sums.value.twRaw + sums.value.twLev) / sT) * 100).toFixed(1),
+                            levP: (((sums.value.usLev + sums.value.twLev) / sT) * 100).toFixed(1),
+                            rawP: (((sums.value.usRaw + sums.value.twRaw) / sT) * 100).toFixed(1),
+                            levRatio: leverageRatio.value
+                        });
+                        localStorage.setItem(STORAGE_KEY + 'history', JSON.stringify(history));
+                        alert('紀錄儲存完成');
+                    } catch (e) { alert('儲存失敗'); }
+                    finally { isSaving.value = false; }
+                };
+
+                const exportFullData = () => {
+                    const data = { assets, targetRatios, stockList, finance, history };
+                    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `Portfolio_Full_Backup_${new Date().toISOString().split('T')[0]}.json`;
+                    a.click();
+                };
+
+                const importFullData = (event) => {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = JSON.parse(e.target.result);
+                            Object.assign(assets, data.assets);
+                            Object.assign(targetRatios, data.targetRatios);
+                            stockList.splice(0, stockList.length, ...data.stockList);
+                            Object.assign(finance, data.finance);
+                            history.splice(0, history.length, ...data.history);
+                            alert('數據同步成功！');
+                        } catch (err) { alert('備份檔格式不符'); }
+                    };
+                    reader.readAsText(file);
+                };
+
+                const exportToCSV = () => {
+                    let csv = "\uFEFF時間,總資產(A),信貸(L),現金,美股%,台股%,槓桿%,原型%,負債比\n";
+                    history.forEach(h => { csv += `${h.time},${h.total},${h.loan},${h.cash},${h.usP},${h.twP},${h.levP},${h.rawP},${h.levRatio}\n`; });
+                    const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `Portfolio_History.csv`;
+                    a.click();
+                };
+
+                watch([assets, targetRatios, stockList, finance], () => {
+                    localStorage.setItem(STORAGE_KEY + 'assets', JSON.stringify(assets));
+                    localStorage.setItem(STORAGE_KEY + 'ratios', JSON.stringify(targetRatios));
+                    localStorage.setItem(STORAGE_KEY + 'stocks', JSON.stringify(stockList));
+                    localStorage.setItem(STORAGE_KEY + 'fin', JSON.stringify(finance));
+                }, { deep: true });
+
+                onMounted(async () => {
+                    setInterval(() => { currentTime.value = new Date().toLocaleString('zh-TW', { hour12: false }); }, 1000);
+                    usdRate.value = await getLiveRate();
+                });
+
+                return { currentTab, currentTime, usdRate, isSaving, labels, assets, targetRatios, stockList, finance, totalAssets, leverageRatio, rebalanceAdvice, history, handleSave, riskUI, addStock: () => stockList.push({type:'usRaw', name:'', shares:0, price:0}), removeStock: (i) => stockList.splice(i,1), deleteHistory: (i) => { if(confirm('確定刪除？')){ history.splice(i,1); localStorage.setItem(STORAGE_KEY + 'history', JSON.stringify(history)); } }, formatCurrency: (v) => 'NT$ ' + Math.round(v||0).toLocaleString(), calcSingleStock, sums, exportFullData, importFullData, exportToCSV };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
