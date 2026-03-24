@@ -220,7 +220,7 @@
                             </p>
                         </div>
                         <button @click="handleSave" :disabled="isSaving" class="w-full bg-slate-800 text-white font-black py-4 rounded hover:bg-black transition uppercase text-xs tracking-widest mt-2 shadow-md">
-                            {{ isSaving ? '同步數據中...' : '確認儲存目前快照' }}
+                            {{ isSaving ? '同步數據中...' : '確認儲存' }}
                         </button>
                     </div>
                 </section>
@@ -349,7 +349,7 @@
                             levRatio: leverageRatio.value
                         });
                         localStorage.setItem(STORAGE_KEY + 'history', JSON.stringify(history));
-                        alert('紀錄儲存完成');
+                        alert('儲存完成');
                     } catch (e) { alert('儲存失敗'); }
                     finally { isSaving.value = false; }
                 };
