@@ -70,7 +70,7 @@
                     <div class="p-6">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label class="uppercase tracking-wider">信貸總額 (Total Loan)</label>
+                                <label class="uppercase tracking-wider">信貸總額</label>
                                 <input type="number" v-model.number="finance.loanBalance" class="input-field border-rose-200 font-mono text-rose-700 bg-white">
                             </div>
                             <div class="bg-white p-5 rounded-lg border border-slate-200 flex flex-col justify-center gap-4 shadow-sm">
@@ -196,11 +196,11 @@
                             </div>
                             <div class="flex justify-between mt-3 text-[11px] font-bold">
                                 <span :class="leverageRatio < 55 ? 'text-emerald-400' : 'text-slate-500'">● 低風險 (<55)</span>
-                                <span :class="leverageRatio >= 55 && leverageRatio < 65 ? 'text-yellow-400' : 'text-slate-500'">● 安全區</span>
+                                <span :class="leverageRatio >= 55 && leverageRatio < 65 ? 'text-yellow-400' : 'text-slate-500'">● 安全區 (55-65)</span>
                             </div>
                             <div class="flex justify-between mt-1 text-[11px] font-bold">
-                                <span :class="leverageRatio >= 65 && leverageRatio < 75 ? 'text-orange-400' : 'text-slate-500'">● 高風險</span>
-                                <span :class="leverageRatio >= 75 ? 'text-red-500 font-black' : 'text-slate-500'">● 危險區</span>
+                                <span :class="leverageRatio >= 65 && leverageRatio < 75 ? 'text-orange-400' : 'text-slate-500'">● 高風險 (65-75)</span>
+                                <span :class="leverageRatio >= 75 ? 'text-red-500 font-black' : 'text-slate-500'">● 危險區 (>75)</span>
                             </div>
                             <p class="text-[9px] text-slate-400 mt-4 italic text-center uppercase tracking-tighter">公式：信貸總額 / (現金合計 + 股票合計)</p>
                         </div>
